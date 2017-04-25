@@ -1,4 +1,4 @@
-package mle3neuralnetwork;
+package mle3neuralnetwork.neuron;
 
 /**
  * @author Link

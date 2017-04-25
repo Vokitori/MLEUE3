@@ -10,7 +10,7 @@ import ml.technikum.at.nn.DigitImageLoadingService;
 /**
  * @author Voki
  */
-public class MLE3NeuralNetwork {
+public class Main {
 
     public static final String PATH = "data/";
 
@@ -24,7 +24,7 @@ public class MLE3NeuralNetwork {
                 System.out.println(imageList.get(i).getLabel());
             }
         } catch (IOException ex) {
-            Logger.getLogger(MLE3NeuralNetwork.class.getName()).log(Level.SEVERE, null, ex);
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 }

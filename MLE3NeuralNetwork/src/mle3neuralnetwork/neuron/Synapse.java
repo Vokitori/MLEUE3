@@ -1,4 +1,6 @@
-package mle3neuralnetwork;
+package mle3neuralnetwork.neuron;
+
+import mle3neuralnetwork.Network;
 
 /**
  * @author Voki
@@ -12,5 +14,6 @@ public class Synapse {
     public Synapse(Neuron previous, Neuron next) {
         this.previous = previous;
         this.next = next;
+        weight = Network.getNewWeight();
     }
 }

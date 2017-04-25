@@ -1,12 +1,13 @@
-package mle3neuralnetwork;
+package mle3neuralnetwork.neuron;
 
+import mle3neuralnetwork.neuron.Synapse;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 
 /**
  * @author Voki
  */
-public class Neuron {
+public class NormalNeuron implements Neuron {
 
     private double biasWeight = 1;
     private double value;
@@ -16,7 +17,7 @@ public class Neuron {
 
     private static final ActivationFunction activationFunction = ActivationFunction.SIGMOID;
 
-    public Neuron() {
+    public NormalNeuron() {
     }
 
     public void calculateValue() {
@@ -32,6 +33,11 @@ public class Neuron {
         return sum;
     }
 
+    public void connectWithPreviousNeutron(Neuron previous) {
+        previousSynapseList.add(new Synapse(previous, this));
+    }
+
+    @Override
     public double getValue() {
         return value;
     }
