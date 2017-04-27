@@ -1,6 +1,6 @@
 package mle3neuralnetwork.layer;
 
-import java.util.ArrayList;
+import mle3neuralnetwork.InputData;
 import mle3neuralnetwork.Network;
 import mle3neuralnetwork.neuron.InputNeuron;
 
@@ -10,24 +10,35 @@ import mle3neuralnetwork.neuron.InputNeuron;
 public class InputLayer extends Layer {
 
     private final InputNeuron[] neurons;
-    private int[] newNeuronValues;
+    private final Network network;
+    private InputData data;
 
-    public InputLayer() {
-        this.neurons = new InputNeuron[Network.INPUT_NEURON_COUNT];
+    public InputLayer(Network network) {
+        this.network = network;
+        this.neurons = new InputNeuron[this.network.inputLayerNeutronCount];
         for (int i = 0; i < neurons.length; i++) {
-            neurons[i] = new InputNeuron();
+            neurons[i] = new InputNeuron(network);
         }
+    }
+
+    public InputNeuron[] getNeurons() {
+        return neurons;
+    }
+
+    public void adjustWeights() {
+        for (InputNeuron neuron : neurons) {
+            neuron.adjustWeights();
+        }
+    }
+
+    public void setInputData(InputData data) {
+        this.data = data;
     }
 
     @Override
     public void updateNeurons() {
         for (int i = 0; i < neurons.length; i++) {
-            neurons[i].setValue(newNeuronValues[i]);
+            neurons[i].setValue(network.getInputData().getData(i));
         }
     }
-
-    public void setNewNeuronValues(int[] newNeuronValues) {
-        this.newNeuronValues = newNeuronValues;
-    }
-
 }

@@ -7,13 +7,20 @@ import mle3neuralnetwork.Network;
  */
 public class Synapse {
 
-    public final Neuron previous;
-    public final Neuron next;
+    public final NeuronWithFrontSynapse previous;
+    public final NeuronWithBackSynapse next;
     public double weight;
-
-    public Synapse(Neuron previous, Neuron next) {
+    public double weightChange;
+    
+    private Synapse(NeuronWithFrontSynapse previous, NeuronWithBackSynapse next) {
         this.previous = previous;
         this.next = next;
+        previous.receiveSynapsisFromNext(this);
+        next.receiveSynapseFromPrevious(this);
         weight = Network.getNewWeight();
+    }
+    
+    public static void createSynapse(NeuronWithFrontSynapse previous, NeuronWithBackSynapse next){
+        new Synapse(previous, next);
     }
 }
