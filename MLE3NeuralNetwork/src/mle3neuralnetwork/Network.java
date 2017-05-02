@@ -1,117 +1,168 @@
 package mle3neuralnetwork;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import ml.technikum.at.nn.DigitImage;
-import ml.technikum.at.nn.DigitImageLoadingService;
-import static mle3neuralnetwork.Main.PATH;
-import mle3neuralnetwork.layer.HiddenLayer;
-import mle3neuralnetwork.layer.InputLayer;
-import mle3neuralnetwork.layer.OutputLayer;
+import java.util.*;
+import mle3neuralnetwork.data.Data;
+import mle3neuralnetwork.data.SetupData;
+import mle3neuralnetwork.data.SetupDataSet;
+import mle3neuralnetwork.neuron.*;
+import static mle3neuralnetwork.neuron.ActivationFunction.SIGMOID;
+import static mle3neuralnetwork.neuron.FunctionList.ADJUST_BIAS_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.ADJUST_WEIGHT_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_ERROR_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_NETWORK_ERROR_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_OUTPUT_ERROR_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.CONNECT_TO_RIGHT_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.SET_VALUE_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_VALUE_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.GET_GUESSED_DIGIT_FUNCTION;
+import static mle3neuralnetwork.neuron.FunctionList.PRINT_FUNCTION;
 
 /**
  * @author Link
  */
 public class Network {
 
+    private static final ActivationFunction ACTIVATION_FUNCTION = SIGMOID;
+
     public final double learningRate;
     public final double momentum;
     public final double allowedErrorMargin;
 
-    public final int hiddenLayerNeuronCount;
-    public final int inputLayerNeutronCount = 784;
-    public final int outputLayerNeuronCount = 10;
+    public final int hiddenNeuronCount;
+    public static final int INPUT_NEURON_COUNT = 784;
+    public static final int OUTPUT_NEURON_COUNT = 10;
 
-    private final InputLayer inputLayer;
-    private final HiddenLayer hiddenLayer;
-    private final OutputLayer outputLayer;
+    private final AccuracyMatrix accuracyMatrix = new AccuracyMatrix(10);
 
-    private List<DigitImage> imageTrainingsList;
-    private List<DigitImage> imageTestList;
+    public final Layer inputLayer;
+    public final Layer hiddenLayer;
+    public final Layer outputLayer;
 
-    private InputData inputData;
+    public long time;
 
+    /**
+     * A neural network for recognising digits.
+     *
+     * @param learningRate
+     * @param momentum
+     * @param allowedErrorMargin
+     * @param hiddenLayerNeuronCount
+     */
     public Network(double learningRate, double momentum, double allowedErrorMargin, int hiddenLayerNeuronCount) {
         this.learningRate = learningRate;
         this.momentum = momentum;
         this.allowedErrorMargin = allowedErrorMargin;
-        this.hiddenLayerNeuronCount = hiddenLayerNeuronCount;
-        inputLayer = new InputLayer(this);
-        hiddenLayer = new HiddenLayer(this, this.hiddenLayerNeuronCount);
-        outputLayer = new OutputLayer(this);
+        this.hiddenNeuronCount = hiddenLayerNeuronCount;
+        inputLayer = new Layer(INPUT_NEURON_COUNT);
+        hiddenLayer = new Layer(hiddenLayerNeuronCount);
+        outputLayer = new Layer(OUTPUT_NEURON_COUNT);
 
-        hiddenLayer.connectWithNeurons(inputLayer.getNeurons());
-        hiddenLayer.connectWithNeurons(outputLayer.getNeurons());
-
-        init();
+        inputLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, hiddenLayer);
+        hiddenLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, outputLayer);
     }
 
-    private void init() {
-        try {
-            DigitImageLoadingService service = new DigitImageLoadingService(PATH + "t10k-labels.idx1-ubyte", PATH + "t10k-images.idx3-ubyte");
-            imageTestList = service.loadDigitImages();
-            service = new DigitImageLoadingService(PATH + "train-labels.idx1-ubyte", PATH + "train-images.idx3-ubyte");
-            imageTrainingsList = service.loadDigitImages();
-        } catch (IOException ex) {
-            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        }
+    /**
+     * Uses the specified SetupDataSet to set up the network until it is below the specified allowed ErrorMargin
+     *
+     * @param dataSet
+     */
+    public void initialise(SetupDataSet dataSet) {
+        train(dataSet.getTrainData());
+        test(dataSet.getTestData());
     }
 
-    public InputData getInputData() {
-        return inputData;
+    /**
+     *
+     * @return the accuracyMatrix of this network
+     */
+    public AccuracyMatrix getAccuracyMatrix() {
+        return accuracyMatrix;
     }
 
-    public void train() {
+    /**
+     * Guesses what digit the specified data represents.
+     *
+     * @param data contains a single digit
+     * @return the guessed value
+     */
+    public int guessValue(Data data) {
+        inputLayer.apply(this, SET_VALUE_FUNCTION, new FunctionList.SetValueParameter(data.getData()));
+        hiddenLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+        outputLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+
+        FunctionList.GetGuessedDigitParameter digit = new FunctionList.GetGuessedDigitParameter();
+        outputLayer.apply(this, GET_GUESSED_DIGIT_FUNCTION, digit);
+        return digit.guess;
+    }
+
+    /**
+     * Calculates the errors based on the current input and expected output and
+     * adjusts all weights (also the bias weights) accordingly
+     *
+     * @param label the output that was expected
+     * @param guess the value guessed by the network
+     */
+    private void reduceError(int label, int guess) {
+        outputLayer.apply(this, CALCULATE_OUTPUT_ERROR_FUNCTION, generateLabelArray(label).iterator());
+        hiddenLayer.apply(this, CALCULATE_ERROR_FUNCTION, null);
+        hiddenLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
+        outputLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
+        inputLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
+        hiddenLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
+    }
+
+    /**
+     * Uses training data to train the network until the network error is below the allowed error margin.
+     */
+    private void train(List<SetupData> dataSet) {
         double currentError = 1;
-        while (currentError > 0.005) {
-            for (DigitImage digitImage : imageTrainingsList) {
-                inputData = new InputData(digitImage.getData(), digitImage.getLabel());
-                outputLayer.setCorrectValues(generateCorrectValues(digitImage.getLabel()));
-                feedForward();
-                backPropagate();
+        for (long i = 0; currentError > allowedErrorMargin; i++) {
+            time = System.nanoTime();
+            int iModSize = (int) (i % dataSet.size());
+            SetupData data = dataSet.get(iModSize);
+            int guessedValue = guessValue(data);
+            reduceError(data.getLabel(), guessedValue);
+
+            FunctionList.CalculateNetworkErrorParameter p = new FunctionList.CalculateNetworkErrorParameter(data.getData());
+            outputLayer.apply(this, CALCULATE_NETWORK_ERROR_FUNCTION, p);
+
+            currentError = p.getNetworkError(outputLayer.neurons.length);
+            if (i % 10000 == 0) {
+                System.out.println("Iteration " + i / 10000 + "0k(" + (int) ((System.nanoTime() - time) / 1000) + "ms): " + currentError);
+                //   hiddenLayer.apply(this, PRINT_FUNCTION, null);
             }
-            currentError = outputLayer.calculateNetworkError();
-            System.out.println(currentError);
+            if (i > 5000)
+                break;
+        }
+        hiddenLayer.apply(this, PRINT_FUNCTION, null);
+        System.out.println();
+        outputLayer.apply(this, PRINT_FUNCTION, null);
+
+        System.out.println("Final error: " + currentError);
+    }
+
+    /**
+     * Uses test data to calculate the accuracy of the network,
+     * which is stored in the accuracyMatrix.
+     *
+     * @param dataSet
+     */
+    private void test(List<SetupData> dataSet) {
+        for (SetupData data : dataSet) {
+            int guess = guessValue(data);
+            accuracyMatrix.addGuess(guess, data.getLabel());
         }
     }
 
-    public void test() {
-        for (DigitImage digitImage : imageTestList) {
-            inputData = new InputData(digitImage.getData(), digitImage.getLabel());
-            feedForward();
-            System.out.print(outputLayer.expectedNumber());
-            System.out.println("/" + inputData.getLabel());
+    private static List<Double> generateLabelArray(int label) {
+        ArrayList<Double> list = new ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            list.add(label == i ? 1d : 0d);
         }
+        return list;
     }
 
-    private static double[] generateCorrectValues(int label) {
-        double[] d = new double[10];
-        for (int i = 0; i < d.length; i++) {
-            d[i] = label == i ? 1 : 0;
-        }
-        return d;
-    }
-
-    private void feedForward() {
-        inputLayer.updateNeurons();
-        hiddenLayer.updateNeurons();
-        outputLayer.updateNeurons();
-    }
-
-    private void backPropagate() {
-        outputLayer.calculateErrors();
-        hiddenLayer.calculateErrors();
-        hiddenLayer.adjustWeights();
-        outputLayer.adjustBias();
-        inputLayer.adjustWeights();
-        hiddenLayer.adjustBias();
-
-    }
-
-    public static double getNewWeight() {
+    public static double generateRandomWeight() {
         return 2 * Math.random() - 1;
     }
-
 }

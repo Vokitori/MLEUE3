@@ -1,10 +1,11 @@
-package ml.technikum.at.nn;
+package mle3neuralnetwork.reader;
 
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import mle3neuralnetwork.data.SetupData;
 
 /**
  * Created by IntelliJ IDEA.
@@ -14,8 +15,8 @@ import java.util.List;
  */
 public class DigitImageLoadingService {
 
-    private String labelFileName;
-    private String imageFileName;
+    private final String labelFileName;
+    private final String imageFileName;
 
     /** the following constants are defined as per the values described at http://yann.lecun.com/exdb/mnist/ **/
 
@@ -45,8 +46,8 @@ public class DigitImageLoadingService {
         this.imageFileName = imageFileName;
     }
 
-    public List<DigitImage> loadDigitImages() throws IOException {
-        List<DigitImage> images = new ArrayList<DigitImage>();
+    public List<SetupData> loadDigitImages() throws IOException {
+        List<SetupData> images = new ArrayList<>();
 
         ByteArrayOutputStream labelBuffer = new ByteArrayOutputStream();
         ByteArrayOutputStream imageBuffer = new ByteArrayOutputStream();
