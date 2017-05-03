@@ -5,38 +5,31 @@ import mle3neuralnetwork.data.Data;
 import mle3neuralnetwork.data.SetupData;
 import mle3neuralnetwork.data.SetupDataSet;
 import mle3neuralnetwork.neuron.*;
-import static mle3neuralnetwork.neuron.ActivationFunction.SIGMOID;
-import static mle3neuralnetwork.neuron.FunctionList.ADJUST_BIAS_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.ADJUST_WEIGHT_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_ERROR_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_NETWORK_ERROR_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_OUTPUT_ERROR_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.CONNECT_TO_RIGHT_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.SET_VALUE_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.CALCULATE_VALUE_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.GET_GUESSED_DIGIT_FUNCTION;
-import static mle3neuralnetwork.neuron.FunctionList.PRINT_FUNCTION;
+import static mle3neuralnetwork.neuron.ActivationFunction.*;
+import static mle3neuralnetwork.neuron.FunctionList.*;
 
 /**
  * @author Link
  */
 public class Network {
 
-    private static final ActivationFunction ACTIVATION_FUNCTION = SIGMOID;
+    private static final ActivationFunction ACTIVATION_FUNCTION = ActivationFunction.SIGMOID;
 
     public final double learningRate;
     public final double momentum;
     public final double allowedErrorMargin;
 
     public final int hiddenNeuronCount;
-    public static final int INPUT_NEURON_COUNT = 784;
-    public static final int OUTPUT_NEURON_COUNT = 10;
+    public final int inputNeuronCount;
+    public final int outputNeuronCount;
 
-    private final AccuracyMatrix accuracyMatrix = new AccuracyMatrix(10);
+    private final AccuracyMatrix accuracyMatrix;
 
     public final Layer inputLayer;
     public final Layer hiddenLayer;
     public final Layer outputLayer;
+
+    public boolean interrupt = false;
 
     public long time;
 
@@ -46,23 +39,32 @@ public class Network {
      * @param learningRate
      * @param momentum
      * @param allowedErrorMargin
-     * @param hiddenLayerNeuronCount
+     * @param inputNeuronCount
+     * @param hiddenLayerCount
+     * @param outputNeuronCount
      */
-    public Network(double learningRate, double momentum, double allowedErrorMargin, int hiddenLayerNeuronCount) {
+    public Network(double learningRate, double momentum, double allowedErrorMargin, int inputNeuronCount, int hiddenLayerCount, int outputNeuronCount) {
         this.learningRate = learningRate;
         this.momentum = momentum;
         this.allowedErrorMargin = allowedErrorMargin;
-        this.hiddenNeuronCount = hiddenLayerNeuronCount;
-        inputLayer = new Layer(INPUT_NEURON_COUNT);
-        hiddenLayer = new Layer(hiddenLayerNeuronCount);
-        outputLayer = new Layer(OUTPUT_NEURON_COUNT);
+
+        this.inputNeuronCount = inputNeuronCount;
+        this.hiddenNeuronCount = hiddenLayerCount;
+        this.outputNeuronCount = outputNeuronCount;
+
+        inputLayer = new Layer(inputNeuronCount);
+        hiddenLayer = new Layer(hiddenLayerCount);
+        outputLayer = new Layer(outputNeuronCount);
 
         inputLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, hiddenLayer);
         hiddenLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, outputLayer);
+
+        accuracyMatrix = new AccuracyMatrix(outputNeuronCount);
     }
 
     /**
-     * Uses the specified SetupDataSet to set up the network until it is below the specified allowed ErrorMargin
+     * Uses the specified SetupDataSet to set up the network until it is below
+     * the specified allowed ErrorMargin
      *
      * @param dataSet
      */
@@ -86,13 +88,17 @@ public class Network {
      * @return the guessed value
      */
     public int guessValue(Data data) {
-        inputLayer.apply(this, SET_VALUE_FUNCTION, new FunctionList.SetValueParameter(data.getData()));
-        hiddenLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
-        outputLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+        feedForward(data);
 
         FunctionList.GetGuessedDigitParameter digit = new FunctionList.GetGuessedDigitParameter();
         outputLayer.apply(this, GET_GUESSED_DIGIT_FUNCTION, digit);
         return digit.guess;
+    }
+
+    private void feedForward(Data data) {
+        inputLayer.apply(this, SET_VALUE_FUNCTION, new FunctionList.SetValueParameter(data.getData()));
+        hiddenLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+        outputLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
     }
 
     /**
@@ -102,9 +108,9 @@ public class Network {
      * @param label the output that was expected
      * @param guess the value guessed by the network
      */
-    private void reduceError(int label, int guess) {
+    private void backPropagate(int label) {
         outputLayer.apply(this, CALCULATE_OUTPUT_ERROR_FUNCTION, generateLabelArray(label).iterator());
-        hiddenLayer.apply(this, CALCULATE_ERROR_FUNCTION, null);
+        hiddenLayer.apply(this, CALCULATE_HIDDEN_ERROR_FUNCTION, null);
         hiddenLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
         outputLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
         inputLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
@@ -112,38 +118,42 @@ public class Network {
     }
 
     /**
-     * Uses training data to train the network until the network error is below the allowed error margin.
+     * Uses training data to train the network until the network error is below
+     * the allowed error margin.
      */
     private void train(List<SetupData> dataSet) {
-        double currentError = 1;
-        for (long i = 0; currentError > allowedErrorMargin; i++) {
+        double currentError = 0;
+        int count = 0;
+        do {
             time = System.nanoTime();
-            int iModSize = (int) (i % dataSet.size());
-            SetupData data = dataSet.get(iModSize);
-            int guessedValue = guessValue(data);
-            reduceError(data.getLabel(), guessedValue);
+            for (SetupData data : dataSet) {
+                feedForward(data);
+                backPropagate(data.getLabel());
 
-            FunctionList.CalculateNetworkErrorParameter p = new FunctionList.CalculateNetworkErrorParameter(data.getData());
-            outputLayer.apply(this, CALCULATE_NETWORK_ERROR_FUNCTION, p);
-
-            currentError = p.getNetworkError(outputLayer.neurons.length);
-            if (i % 10000 == 0) {
-                System.out.println("Iteration " + i / 10000 + "0k(" + (int) ((System.nanoTime() - time) / 1000) + "ms): " + currentError);
-                //   hiddenLayer.apply(this, PRINT_FUNCTION, null);
+                FunctionList.CalculateMeanSquareErrorParameter p = new FunctionList.CalculateMeanSquareErrorParameter(data.getData());
+                outputLayer.apply(this, CALCULATE_MEAN_SQUARE_ERROR_FUNCTION, p);
+                currentError += p.getNetworkError(outputLayer.neurons.length);
+                /*  inputLayer.apply(this, PRINT_VALUE_FUNCTION, null);
+                System.out.println();
+                hiddenLayer.apply(this, PRINT_LEFT_SYNAPSES_FUNCTION, null);
+                System.out.println();
+                outputLayer.apply(this, PRINT_LEFT_SYNAPSES_FUNCTION, null);
+                System.out.println();
+                System.out.println("-----------------------------------------");*/
             }
-            if (i > 5000)
-                break;
-        }
-        hiddenLayer.apply(this, PRINT_FUNCTION, null);
-        System.out.println();
-        outputLayer.apply(this, PRINT_FUNCTION, null);
+            count += dataSet.size();
 
-        System.out.println("Final error: " + currentError);
+            System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError / count);
+
+            // System.out.println("#########################################");
+        } while (currentError / count > allowedErrorMargin && !interrupt);
+        System.out.println("Finished! Last Iteration:");
+        System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError / count);
     }
 
     /**
-     * Uses test data to calculate the accuracy of the network,
-     * which is stored in the accuracyMatrix.
+     * Uses test data to calculate the accuracy of the network, which is stored
+     * in the accuracyMatrix.
      *
      * @param dataSet
      */
@@ -154,9 +164,9 @@ public class Network {
         }
     }
 
-    private static List<Double> generateLabelArray(int label) {
+    private List<Double> generateLabelArray(int label) {
         ArrayList<Double> list = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < outputNeuronCount; i++) {
             list.add(label == i ? 1d : 0d);
         }
         return list;

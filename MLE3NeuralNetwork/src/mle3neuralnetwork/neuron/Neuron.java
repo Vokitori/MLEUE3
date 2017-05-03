@@ -1,6 +1,7 @@
 package mle3neuralnetwork.neuron;
 
 import java.util.ArrayList;
+import mle3neuralnetwork.Network;
 
 /**
  *
@@ -8,9 +9,9 @@ import java.util.ArrayList;
  */
 public class Neuron {
 
-    protected double value;
-    protected double error;
-    protected double bias = 1;
+    protected double value = 0;
+    protected double error = 0;
+    protected double biasWeight = Network.generateRandomWeight();
 
     protected ArrayList<Synapse> leftSynapses = new ArrayList<>();
     protected ArrayList<Synapse> rightSynapses = new ArrayList<>();
@@ -30,7 +31,7 @@ public class Neuron {
         double sum = 0;
         for (int i = 0; i < leftSynapses.size(); i++) {
             sum += leftSynapses.get(i).weight
-                   * leftNeurons.get(i).getValue();
+                    * leftNeurons.get(i).getValue();
         }
         return sum;
     }

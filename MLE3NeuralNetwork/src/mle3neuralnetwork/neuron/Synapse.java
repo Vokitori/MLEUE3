@@ -7,22 +7,21 @@ import mle3neuralnetwork.Network;
  */
 public class Synapse {
 
-    public double weight;
-    public double weightChange;
+    public double weight = Network.generateRandomWeight();
+    public double weightChange = 0;
     public final Neuron left;
     public final Neuron right;
 
     private Synapse(Neuron left, Neuron right) {
         this.left = left;
         this.right = right;
-        weight = Network.generateRandomWeight();
     }
 
     public static void connectNeurons(Neuron left, Neuron right) {
         Synapse synapse = new Synapse(left, right);
         left.rightSynapses.add(synapse);
         left.rightNeurons.add(right);
-        
+
         right.leftSynapses.add(synapse);
         right.leftNeurons.add(left);
 
