@@ -1,8 +1,7 @@
 package mle3neuralnetwork;
 
 import java.util.*;
-import mle3neuralnetwork.data.SetupData;
-import mle3neuralnetwork.data.SetupDataSet;
+import mle3neuralnetwork.data.*;
 import mle3neuralnetwork.reader.*;
 
 /**
@@ -12,6 +11,7 @@ public class Main {
 
     public static final String PATH = "data/";
 
+    //<editor-fold defaultstate="collapsed" desc="b">
     public static SetupData b111 = new SetupData() {
         @Override
         public int getLabel() {
@@ -59,6 +59,7 @@ public class Main {
             return new double[]{1, 0};
         }
     };
+    //</editor-fold>
 
     public static void main(String[] args) throws Exception {
 
@@ -67,9 +68,10 @@ public class Main {
         service = new DigitImageLoadingService(PATH + "train-labels.idx1-ubyte", PATH + "train-images.idx3-ubyte");
         List<SetupData> trainData = service.loadDigitImages();
 
-        Network n = new Network(0.2, 0.9, 0.05,784, 89, 10);
+        Network n = new Network(0.4, 0.90, 0.05, 784, 10, 100, 10);
 
-        /* List<SetupData> trainData = new ArrayList<>();
+        /*
+        List<SetupData> trainData = new ArrayList<>();
         trainData.add(b000);
         trainData.add(b010);
         trainData.add(b100);
@@ -82,7 +84,8 @@ public class Main {
         testData.add(b010);
         testData.add(b100);
         testData.add(b111);
-        Network n = new Network(0.2, 0.9, 0.05, 2, 2, 2);*/
+        Network n = new Network(0.2, 0.9, 0.05, 2, 2, 2);
+         */
         Thread t = new Thread(() -> {
             System.out.println("Initialising! Press enter cut training short...");
             n.initialise(new SetupDataSet(trainData, testData));
@@ -93,7 +96,7 @@ public class Main {
         s.nextLine();
         n.interrupt = true;
         t.join();
-        n.getAccuracyMatrix().display();
+        n.getAccuracyMatrix().displayMatrix();
 
         /*    n.takeGuess(new Data() {
             @Override

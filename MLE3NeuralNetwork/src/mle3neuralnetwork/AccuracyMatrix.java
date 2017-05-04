@@ -35,7 +35,7 @@ public final class AccuracyMatrix {
         matrix[is][guessed]++;
     }
 
-    public void display() {
+    public void displayMatrix() {
         System.out.println();
         System.out.println("         G   U   E   S   S   E   D");
         System.out.print("\t");
@@ -46,14 +46,28 @@ public final class AccuracyMatrix {
         System.out.println("\t------------------------------------------------------------------------------");
 
         for (int i = 0; i < matrix.length; i++) {
-            for (int j = -1; j < matrix.length; j++) {
-                if (j == -1)
+            for (int j = -1; j < matrix[i].length; j++) {
+                if (j == -1) {
                     System.out.print(i + "\t");
-                else
+                } else {
                     System.out.print(matrix[i][j] + "\t");
+                }
             }
             System.out.println();
         }
     }
 
+    public void displayAccuracy() {
+        int sum = 0;
+        int correct = 0;
+        for (int i = 0; i < matrix.length; i++) {
+            for (int j = 0; j < matrix[i].length; j++) {
+                sum += matrix[i][j];
+                if (i == j) {
+                    correct += matrix[i][j];
+                }
+            }
+        }
+        System.out.println("Accuracy: " + (correct * 1.0 / sum));
+    }
 }

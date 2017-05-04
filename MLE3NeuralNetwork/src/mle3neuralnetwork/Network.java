@@ -1,11 +1,8 @@
 package mle3neuralnetwork;
 
 import java.util.*;
-import mle3neuralnetwork.data.Data;
-import mle3neuralnetwork.data.SetupData;
-import mle3neuralnetwork.data.SetupDataSet;
+import mle3neuralnetwork.data.*;
 import mle3neuralnetwork.neuron.*;
-import static mle3neuralnetwork.neuron.ActivationFunction.*;
 import static mle3neuralnetwork.neuron.FunctionList.*;
 
 /**
@@ -19,14 +16,13 @@ public class Network {
     public final double momentum;
     public final double allowedErrorMargin;
 
-    public final int hiddenNeuronCount;
     public final int inputNeuronCount;
     public final int outputNeuronCount;
 
     private final AccuracyMatrix accuracyMatrix;
 
     public final Layer inputLayer;
-    public final Layer hiddenLayer;
+    public final Layer[] hiddenLayerArray;
     public final Layer outputLayer;
 
     public boolean interrupt = false;
@@ -43,23 +39,31 @@ public class Network {
      * @param hiddenLayerCount
      * @param outputNeuronCount
      */
-    public Network(double learningRate, double momentum, double allowedErrorMargin, int inputNeuronCount, int hiddenLayerCount, int outputNeuronCount) {
+    public Network(double learningRate, double momentum, double allowedErrorMargin, int inputNeuronCount, int outputNeuronCount, int... hiddenLayerCount) {
         this.learningRate = learningRate;
         this.momentum = momentum;
         this.allowedErrorMargin = allowedErrorMargin;
 
         this.inputNeuronCount = inputNeuronCount;
-        this.hiddenNeuronCount = hiddenLayerCount;
         this.outputNeuronCount = outputNeuronCount;
 
         inputLayer = new Layer(inputNeuronCount);
-        hiddenLayer = new Layer(hiddenLayerCount);
         outputLayer = new Layer(outputNeuronCount);
-
-        inputLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, hiddenLayer);
-        hiddenLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, outputLayer);
+        hiddenLayerArray = new Layer[hiddenLayerCount.length];
+        for (int i = 0; i < hiddenLayerArray.length; i++) {
+            hiddenLayerArray[i] = new Layer(hiddenLayerCount[i]);
+        }
+        connectLayers();
 
         accuracyMatrix = new AccuracyMatrix(outputNeuronCount);
+    }
+
+    private void connectLayers() {
+        inputLayer.apply(this, CONNECT_TO_RIGHT_FUNCTION, hiddenLayerArray[0]);
+        for (int i = 0; i < hiddenLayerArray.length - 1; i++) {
+            hiddenLayerArray[i].apply(this, CONNECT_TO_RIGHT_FUNCTION, hiddenLayerArray[i + 1]);
+        }
+        hiddenLayerArray[hiddenLayerArray.length - 1].apply(this, CONNECT_TO_RIGHT_FUNCTION, outputLayer);
     }
 
     /**
@@ -69,7 +73,7 @@ public class Network {
      * @param dataSet
      */
     public void initialise(SetupDataSet dataSet) {
-        train(dataSet.getTrainData());
+        train(dataSet.getTrainData(), dataSet.getTestData());
         test(dataSet.getTestData());
     }
 
@@ -97,7 +101,9 @@ public class Network {
 
     private void feedForward(Data data) {
         inputLayer.apply(this, SET_VALUE_FUNCTION, new FunctionList.SetValueParameter(data.getData()));
-        hiddenLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+        for (Layer hiddenLayer : hiddenLayerArray) {
+            hiddenLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
+        }
         outputLayer.apply(this, CALCULATE_VALUE_FUNCTION, ACTIVATION_FUNCTION);
     }
 
@@ -110,22 +116,31 @@ public class Network {
      */
     private void backPropagate(int label) {
         outputLayer.apply(this, CALCULATE_OUTPUT_ERROR_FUNCTION, generateLabelArray(label).iterator());
-        hiddenLayer.apply(this, CALCULATE_HIDDEN_ERROR_FUNCTION, null);
-        hiddenLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
+        for (Layer hiddenLayer : hiddenLayerArray) {
+            hiddenLayer.apply(this, CALCULATE_HIDDEN_ERROR_FUNCTION, null);
+        }
+        for (Layer hiddenLayer : hiddenLayerArray) {
+            hiddenLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
+        }
+
         outputLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
         inputLayer.apply(this, ADJUST_WEIGHT_FUNCTION, null);
-        hiddenLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
+        for (Layer hiddenLayer : hiddenLayerArray) {
+            hiddenLayer.apply(this, ADJUST_BIAS_FUNCTION, null);
+        }
+
     }
 
     /**
      * Uses training data to train the network until the network error is below
      * the allowed error margin.
      */
-    private void train(List<SetupData> dataSet) {
+    private void train(List<SetupData> dataSet, List<SetupData> deleteThis) {
         double currentError = 0;
         int count = 0;
         do {
             time = System.nanoTime();
+            currentError = 0;
             for (SetupData data : dataSet) {
                 feedForward(data);
                 backPropagate(data.getLabel());
@@ -133,22 +148,29 @@ public class Network {
                 FunctionList.CalculateMeanSquareErrorParameter p = new FunctionList.CalculateMeanSquareErrorParameter(data.getData());
                 outputLayer.apply(this, CALCULATE_MEAN_SQUARE_ERROR_FUNCTION, p);
                 currentError += p.getNetworkError(outputLayer.neurons.length);
-                /*  inputLayer.apply(this, PRINT_VALUE_FUNCTION, null);
+
+                /*
+                inputLayer.apply(this, PRINT_VALUE_FUNCTION, null);
                 System.out.println();
                 hiddenLayer.apply(this, PRINT_LEFT_SYNAPSES_FUNCTION, null);
                 System.out.println();
                 outputLayer.apply(this, PRINT_LEFT_SYNAPSES_FUNCTION, null);
                 System.out.println();
-                System.out.println("-----------------------------------------");*/
+                System.out.println("-----------------------------------------");
+                 */
             }
             count += dataSet.size();
+            currentError /= dataSet.size();
+            System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError);
+            test(deleteThis);
 
-            System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError / count);
-
+            accuracyMatrix.displayMatrix();
+            accuracyMatrix.displayAccuracy();
+            accuracyMatrix.clear();
             // System.out.println("#########################################");
-        } while (currentError / count > allowedErrorMargin && !interrupt);
+        } while (/*currentError > allowedErrorMargin && */!interrupt);
         System.out.println("Finished! Last Iteration:");
-        System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError / count);
+        System.out.println("Iteration " + count + "(" + (int) ((System.nanoTime() - time) / 1000000) + "ms): " + currentError);
     }
 
     /**
